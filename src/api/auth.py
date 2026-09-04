@@ -1,4 +1,5 @@
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -16,6 +17,7 @@ from db.session import get_db
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-secret-change-me-32-bytes-minimum")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+PASSWORD_RESET_EXPIRE_MINUTES = 30
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -53,3 +55,20 @@ def get_current_client(
     if client is None:
         raise credentials_error
     return client
+
+
+def generate_reset_token() -> tuple[str, datetime]:
+    """Retourne (token, date d'expiration). Le token est à usage unique."""
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_EXPIRE_MINUTES)
+    return token, expires_at
+
+
+def is_expired(expires_at: datetime) -> bool:
+    """Compare une date d'expiration à "maintenant", en gérant le fait que
+    SQLite renvoie des datetime naïfs alors que PostgreSQL (prod cible)
+    renvoie des datetime avec fuseau — sans ça, la comparaison lève une
+    TypeError selon la base utilisée."""
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at < datetime.now(timezone.utc)

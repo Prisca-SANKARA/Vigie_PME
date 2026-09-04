@@ -37,6 +37,25 @@ export function fetchMe(token) {
   return request("/auth/me", { token });
 }
 
+export function forgotPassword(email) {
+  return request("/auth/forgot-password", { method: "POST", body: { email } });
+}
+
+export function resetPassword(token, newPassword) {
+  return request("/auth/reset-password", {
+    method: "POST",
+    body: { token, new_password: newPassword },
+  });
+}
+
+export function changePassword(currentPassword, newPassword, token) {
+  return request("/auth/change-password", {
+    method: "POST",
+    body: { current_password: currentPassword, new_password: newPassword },
+    token,
+  });
+}
+
 export function createScan(target, token) {
   return request("/scans", { method: "POST", body: { target }, token });
 }

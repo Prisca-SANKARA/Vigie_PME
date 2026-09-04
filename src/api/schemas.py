@@ -22,6 +22,24 @@ class Token(BaseModel):
     token_type: str = "bearer"
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class MessageOut(BaseModel):
+    message: str
+
+
 class ScanRequest(BaseModel):
     target: str
 

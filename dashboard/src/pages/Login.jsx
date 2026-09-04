@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import Logo from "../components/Logo";
+import PasswordInput from "../components/PasswordInput";
 import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
@@ -27,21 +29,29 @@ export default function Login() {
   return (
     <div className="auth-page">
       <form className="auth-form" onSubmit={handleSubmit}>
+        <Logo />
         <h1>Connexion</h1>
         {error && <p className="error">{error}</p>}
-        <label>
+        <label htmlFor="login-email">
           Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          Mot de passe
           <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            id="login-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
           />
         </label>
+        <PasswordInput
+          id="login-password"
+          label="Mot de passe"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <p className="forgot-link">
+          <Link to="/forgot-password">Mot de passe oublié ?</Link>
+        </p>
         <button type="submit" disabled={submitting}>
           {submitting ? "Connexion..." : "Se connecter"}
         </button>

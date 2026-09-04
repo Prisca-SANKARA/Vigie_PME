@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import Logo from "../components/Logo";
+import PasswordInput from "../components/PasswordInput";
 import { useAuth } from "../context/AuthContext";
 
 export default function Register() {
@@ -28,31 +30,37 @@ export default function Register() {
   return (
     <div className="auth-page">
       <form className="auth-form" onSubmit={handleSubmit}>
+        <Logo />
         <h1>Créer un compte PME</h1>
         {error && <p className="error">{error}</p>}
-        <label>
+        <label htmlFor="register-company">
           Nom de l'entreprise
           <input
+            id="register-company"
             type="text"
             value={companyName}
             onChange={(e) => setCompanyName(e.target.value)}
             required
           />
         </label>
-        <label>
+        <label htmlFor="register-email">
           Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        </label>
-        <label>
-          Mot de passe
           <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            minLength={8}
+            id="register-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
           />
         </label>
+        <PasswordInput
+          id="register-password"
+          label="Mot de passe"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          minLength={8}
+          required
+        />
         <button type="submit" disabled={submitting}>
           {submitting ? "Création..." : "Créer mon compte"}
         </button>

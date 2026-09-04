@@ -41,9 +41,16 @@ export default function Dashboard() {
           <h1>Tableau de bord sécurité</h1>
           {client && <p className="subtitle">{client.company_name}</p>}
         </div>
-        <button className="secondary" onClick={logout}>
-          Déconnexion
-        </button>
+        <div className="page-header-actions">
+          <Link to="/settings">
+            <button type="button" className="secondary">
+              Paramètres
+            </button>
+          </Link>
+          <button className="secondary" onClick={logout}>
+            Déconnexion
+          </button>
+        </div>
       </header>
 
       <form className="scan-form" onSubmit={handleScan}>

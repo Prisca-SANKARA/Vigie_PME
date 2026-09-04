@@ -147,3 +147,178 @@ def test_get_scan_detail_not_found_returns_404(client):
     token = register_and_get_token(client)
     response = client.get("/scans/detail/999", headers=auth_headers(token))
     assert response.status_code == 404
+
+
+def _extract_token_from_reset_link(reset_link: str) -> str:
+    from urllib.parse import parse_qs, urlparse
+
+    return parse_qs(urlparse(reset_link).query)["token"][0]
+
+
+def test_forgot_password_returns_same_generic_message_whether_or_not_account_exists(
+    client, monkeypatch
+):
+    monkeypatch.setattr("api.main.send_password_reset_email", lambda email, link: None)
+    register_and_get_token(client, email="known@example.test")
+
+    known = client.post("/auth/forgot-password", json={"email": "known@example.test"})
+    unknown = client.post("/auth/forgot-password", json={"email": "unknown@example.test"})
+
+    assert known.status_code == 200
+    assert unknown.status_code == 200
+    assert known.json() == unknown.json()
+
+
+def test_full_reset_password_flow_allows_login_with_new_password(client, monkeypatch):
+    captured = {}
+
+    def fake_send(email, reset_link):
+        captured["link"] = reset_link
+
+    monkeypatch.setattr("api.main.send_password_reset_email", fake_send)
+    register_and_get_token(client, email="reset@example.test", password="ancienmdp123")
+
+    client.post("/auth/forgot-password", json={"email": "reset@example.test"})
+    reset_token = _extract_token_from_reset_link(captured["link"])
+
+    response = client.post(
+        "/auth/reset-password",
+        json={"token": reset_token, "new_password": "nouveaumdp456"},
+    )
+    assert response.status_code == 200
+
+    old_login = client.post(
+        "/auth/login", data={"username": "reset@example.test", "password": "ancienmdp123"}
+    )
+    new_login = client.post(
+        "/auth/login", data={"username": "reset@example.test", "password": "nouveaumdp456"}
+    )
+    assert old_login.status_code == 401
+    assert new_login.status_code == 200
+
+
+def test_reset_token_cannot_be_reused(client, monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        "api.main.send_password_reset_email",
+        lambda email, link: captured.update(link=link),
+    )
+    register_and_get_token(client, email="reuse@example.test")
+
+    client.post("/auth/forgot-password", json={"email": "reuse@example.test"})
+    reset_token = _extract_token_from_reset_link(captured["link"])
+
+    first = client.post(
+        "/auth/reset-password", json={"token": reset_token, "new_password": "premierchange1"}
+    )
+    second = client.post(
+        "/auth/reset-password", json={"token": reset_token, "new_password": "deuxiemechange2"}
+    )
+    assert first.status_code == 200
+    assert second.status_code == 400
+
+
+def test_reset_password_with_unknown_token_fails(client):
+    response = client.post(
+        "/auth/reset-password", json={"token": "token-inexistant", "new_password": "abcdefgh"}
+    )
+    assert response.status_code == 400
+
+
+def test_reset_password_rejects_short_password(client, monkeypatch):
+    captured = {}
+    monkeypatch.setattr(
+        "api.main.send_password_reset_email",
+        lambda email, link: captured.update(link=link),
+    )
+    register_and_get_token(client, email="short@example.test")
+
+    client.post("/auth/forgot-password", json={"email": "short@example.test"})
+    reset_token = _extract_token_from_reset_link(captured["link"])
+
+    response = client.post(
+        "/auth/reset-password", json={"token": reset_token, "new_password": "court"}
+    )
+    assert response.status_code == 400
+
+
+def test_reset_password_with_expired_token_fails(client):
+    from datetime import datetime, timedelta, timezone
+
+    from db.models import Client, PasswordResetToken
+    from db.session import SessionLocal
+
+    register_and_get_token(client, email="expired@example.test")
+
+    db = SessionLocal()
+    try:
+        owner = db.query(Client).filter(Client.email == "expired@example.test").first()
+        expired_token = PasswordResetToken(
+            client_id=owner.id,
+            token="expired-token-123",
+            expires_at=datetime.now(timezone.utc) - timedelta(minutes=1),
+        )
+        db.add(expired_token)
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        "/auth/reset-password",
+        json={"token": "expired-token-123", "new_password": "nouveaumdp789"},
+    )
+    assert response.status_code == 400
+
+
+def test_change_password_requires_authentication(client):
+    response = client.post(
+        "/auth/change-password",
+        json={"current_password": "x", "new_password": "nouveaumdp123"},
+    )
+    assert response.status_code == 401
+
+
+def test_change_password_success_allows_login_with_new_password(client):
+    token = register_and_get_token(
+        client, email="changepw@example.test", password="ancienmdp123"
+    )
+
+    response = client.post(
+        "/auth/change-password",
+        json={"current_password": "ancienmdp123", "new_password": "nouveaumdp999"},
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 200
+
+    old_login = client.post(
+        "/auth/login", data={"username": "changepw@example.test", "password": "ancienmdp123"}
+    )
+    new_login = client.post(
+        "/auth/login", data={"username": "changepw@example.test", "password": "nouveaumdp999"}
+    )
+    assert old_login.status_code == 401
+    assert new_login.status_code == 200
+
+
+def test_change_password_rejects_wrong_current_password(client):
+    token = register_and_get_token(client, email="wrongcurrent@example.test")
+
+    response = client.post(
+        "/auth/change-password",
+        json={"current_password": "mauvais", "new_password": "nouveaumdp123"},
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 401
+
+
+def test_change_password_rejects_short_new_password(client):
+    token = register_and_get_token(
+        client, email="shortnew@example.test", password="motdepasse123"
+    )
+
+    response = client.post(
+        "/auth/change-password",
+        json={"current_password": "motdepasse123", "new_password": "court"},
+        headers=auth_headers(token),
+    )
+    assert response.status_code == 400
