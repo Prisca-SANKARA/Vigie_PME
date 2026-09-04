@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+.pytest_cache/
+scans.db
+*.log
+
+# dashboard (React/Vite)
+dashboard/node_modules/
+dashboard/dist/
